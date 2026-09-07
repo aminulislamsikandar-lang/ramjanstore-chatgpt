@@ -1,0 +1,11 @@
+import { Router } from "express";
+import { authenticate } from "../middleware/authenticate.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { db } from "../firebase/firestore.js";
+import { cancelOrder } from "../controllers/checkout.controller.js";
+const router=Router();
+router.use(authenticate);
+router.get("/",asyncHandler(async(req,res)=>{const s=await db.collection("orders").where("userId","==",req.user!.uid).orderBy("createdAt","desc").limit(50).get();res.json({success:true,orders:s.docs.map(d=>({id:d.id,...d.data()}))});}));
+router.get("/:orderId",asyncHandler(async(req,res)=>{const d=await db.collection("orders").doc(req.params.orderId).get();if(!d.exists||d.data()?.userId!==req.user!.uid)return res.status(404).json({message:"Order not found"});res.json({success:true,order:{id:d.id,...d.data()}});}));
+router.post("/:orderId/cancel",asyncHandler(cancelOrder));
+export default router;
