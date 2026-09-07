@@ -1,3 +1,9 @@
 import type { Product } from "@ramjanstore/types";
-const API=import.meta.env.VITE_API_URL??"http://localhost:4000/api/v1";async function req<T>(path:string,opt:RequestInit={}):Promise<T>{const token=localStorage.getItem("firebaseIdToken");const r=await fetch(API+path,{...opt,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{}) ,...(opt.headers||{})}});if(!r.ok)throw new Error((await r.json().catch(()=>null))?.error?.message||"Request failed");return r.json()}
-export const engagementApi={wishlist:(id:string)=>req<{liked:boolean}>(`/wishlist/${id}/toggle`,{method:"POST"}),like:(id:string)=>req<{liked:boolean}>(`/likes/${id}/toggle`,{method:"POST"}),rating:(id:string,stars:number,text:string)=>req(`/ratings/${id}`,{method:"POST",body:JSON.stringify({stars,text})}),comment:(id:string,text:string,parentCommentId?:string)=>req(`/comments/${id}`,{method:"POST",body:JSON.stringify({text,parentCommentId})}),wishlistItems:()=>req<{data:Array<Product>}>("/wishlist")};
+import { apiClient } from "../lib/apiClient";
+export const engagementApi={
+ wishlist:(id:string)=>apiClient<{liked:boolean}>(`/wishlist/${id}/toggle`,{method:"POST"}),
+ like:(id:string)=>apiClient<{liked:boolean}>(`/likes/${id}/toggle`,{method:"POST"}),
+ rating:(id:string,stars:number,text:string)=>apiClient<{id:string}>(`/ratings/${id}`,{method:"POST",body:JSON.stringify({stars,text})}),
+ comment:(id:string,text:string,parentCommentId?:string)=>apiClient<{id:string}>(`/comments/${id}`,{method:"POST",body:JSON.stringify({text,parentCommentId})}),
+ wishlistItems:()=>apiClient<{data:Product[]}>("/wishlist"),
+};
