@@ -1,29 +1,12 @@
+import { Link, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { AuthProvider } from "./auth/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Moderation from "./pages/Moderation";
+import InvoiceView from "./pages/InvoiceView";
 import { useState } from "react";
+import { adminApi, type Order } from "./services/adminApi";
 
-const sections = ["Dashboard", "Products", "Orders", "Customers", "Coupons", "Delivery Zones", "Messages", "Reviews", "Returns", "Banners", "Reports", "Audit Logs"];
-
-export default function App() {
-  const [section, setSection] = useState("Dashboard");
-
-  return (
-    <div className="admin-shell">
-      <aside>
-        <div className="brand">RamjanStore <span>Admin</span></div>
-        <nav aria-label="Admin navigation">
-          {sections.map((item) => (
-            <button key={item} className={item === section ? "active" : ""} onClick={() => setSection(item)}>
-              {item}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main>
-        <header><h1>{section}</h1><span className="role">Owner</span></header>
-        <section className="placeholder" aria-live="polite">
-          <h2>{section}</h2>
-          <p>The admin foundation is ready. Feature modules will be wired into this protected surface in the next implementation phase.</p>
-        </section>
-      </main>
-    </div>
-  );
-}
+function Dashboard(){const [s,setS]=useState({todayOrders:0,revenue:0,lowStockAlerts:0,pendingReturns:0});useState(()=>{void adminApi.stats().then(r=>setS(r.data)).catch(()=>undefined)});return <main className="p-6"><h1 className="text-3xl font-bold">Dashboard</h1><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Today's orders",s.todayOrders],["Today's revenue",`₹${s.revenue}`],["Low stock",s.lowStockAlerts],["Pending returns",s.pendingReturns]].map(([a,b])=><div key={String(a)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{a}</p><strong className="mt-2 block text-2xl">{b}</strong></div>)}</div></main>}
+function Orders(){const [orders,setOrders]=useState<Order[]>([]);const [selected,setSelected]=useState<Order|null>(null);useState(()=>{void adminApi.orders("").then(r=>setOrders(r.data)).catch(()=>undefined)});return <main className="p-6"><h1 className="text-3xl font-bold">Orders</h1><div className="mt-6 overflow-x-auto rounded-2xl border bg-white"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-4">Order</th><th>Status</th><th>Payment</th><th>Total</th><th></th></tr></thead><tbody>{orders.map(o=><tr key={o.id} className="border-b"><td className="p-4">{o.orderNumber??o.id}</td><td>{o.status}</td><td>{o.paymentStatus}</td><td>₹{o.total}</td><td><button className="underline" onClick={()=>setSelected(o)}>Invoice</button></td></tr>)}</tbody></table></div>{selected&&<InvoiceView order={selected} onClose={()=>setSelected(null)}/>}</main>}
+function Shell(){return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="border-b bg-white px-5 py-4"><nav className="mx-auto flex max-w-7xl gap-5 text-sm font-medium"><Link to="/dashboard">Dashboard</Link><Link to="/orders">Orders</Link><Link to="/moderation">Moderation</Link></nav></header><Outlet/></div>}
+export default function App(){return <AuthProvider><Routes><Route element={<ProtectedRoute/>}><Route element={<Shell/>}><Route path="/dashboard" element={<Dashboard/>}/><Route path="/orders" element={<Orders/>}/><Route path="/moderation" element={<Moderation/>}/></Route></Route><Route path="/login" element={<main className="grid min-h-screen place-items-center"><p>Please sign in with an authorized admin account.</p></main>}/><Route path="*" element={<Navigate to="/dashboard" replace/>}/></Routes></AuthProvider>}
