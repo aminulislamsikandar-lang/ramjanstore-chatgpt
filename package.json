@@ -16,6 +16,8 @@
     "type-check:storefront": "npm --workspace apps/storefront exec tsc --noEmit",
     "type-check:admin": "npm --workspace apps/admin exec tsc --noEmit",
     "type-check:backend": "npm --workspace backend exec tsc --noEmit",
+    "test": "npm --workspace apps/storefront test",
+    "test:storefront": "npm --workspace apps/storefront test",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
