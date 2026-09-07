@@ -1,0 +1,19 @@
+{
+  "name": "ramjanstore",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*", "packages/*", "backend"],
+  "scripts": {
+    "dev:storefront": "npm --workspace apps/storefront run dev",
+    "dev:admin": "npm --workspace apps/admin run dev",
+    "dev:backend": "npm --workspace backend run dev",
+    "build": "npm run build:storefront && npm run build:admin && npm run build:backend",
+    "build:storefront": "npm --workspace apps/storefront run build",
+    "build:admin": "npm --workspace apps/admin run build",
+    "build:backend": "npm --workspace backend run build",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": { "prettier": "^3.6.2", "typescript": "^5.9.2" }
+}
