@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
-import { wishlist, like, rating, comment, moderation } from "../controllers/engagement.controller.js";
+import { wishlist, wishlistItems, like, rating, comment, moderation, moderationList } from "../controllers/engagement.controller.js";
 const router=Router();
 router.use(authenticate);
+router.get("/wishlist", wishlistItems);
 router.post("/wishlist/:productId/toggle", wishlist);
 router.post("/likes/:productId/toggle", like);
 router.post("/ratings/:productId", rating);
 router.post("/comments/:productId", comment);
+router.get("/admin/moderation", requireAdmin, moderationList);
 router.patch("/admin/moderation", requireAdmin, moderation);
 export default router;
