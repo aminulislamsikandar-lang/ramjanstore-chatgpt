@@ -11,6 +11,11 @@
     "build:storefront": "npm --workspace apps/storefront run build",
     "build:admin": "npm --workspace apps/admin run build",
     "build:backend": "npm --workspace backend run build",
+    "type-check": "npm run type-check:types && npm run type-check:storefront && npm run type-check:admin && npm run type-check:backend",
+    "type-check:types": "npm --workspace packages/types exec tsc --noEmit",
+    "type-check:storefront": "npm --workspace apps/storefront exec tsc --noEmit",
+    "type-check:admin": "npm --workspace apps/admin exec tsc --noEmit",
+    "type-check:backend": "npm --workspace backend exec tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
