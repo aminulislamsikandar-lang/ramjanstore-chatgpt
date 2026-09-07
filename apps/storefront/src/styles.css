@@ -1,0 +1,6 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #222; background: #fffaf6; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.container { max-width: 960px; margin: 0 auto; padding: 64px 24px; }
+.eyebrow { font-size: 12px; letter-spacing: .14em; font-weight: 700; }
+a { color: inherit; font-weight: 700; }
