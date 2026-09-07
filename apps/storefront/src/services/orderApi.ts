@@ -1,0 +1,4 @@
+import { apiClient } from "../lib/apiClient";
+export type OrderStatus="NEW"|"CONFIRMED"|"PREPARING"|"READY_FOR_DELIVERY"|"OUT_FOR_DELIVERY"|"DELIVERED"|"CANCELLED";
+export interface Order {id:string;orderNumber:string;status:OrderStatus;items:Array<{productId:string;name:string;quantity:number;unitPrice:number;subtotal:number}>;subtotal:number;deliveryCharge:number;discount:number;total:number;paymentMethod:"COD";paymentStatus:string;createdAt:string;}
+export const orderApi={list:async()=>{const r=await apiClient.get<{orders:Order[]}>('/orders');return r.data.orders;},get:async(id:string)=>{const r=await apiClient.get<Order>(`/orders/${id}`);return r.data;},cancel:async(id:string)=>apiClient.post(`/orders/${id}/cancel`)};
