@@ -1,0 +1,122 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn() && request.auth.token.role == 'owner';
+    }
+
+    function isAdmin() {
+      return signedIn() && (request.auth.token.role == 'owner' || request.auth.token.role == 'staff');
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function publicProduct() {
+      return resource.data.isActive == true;
+    }
+
+    function publicBanner() {
+      return resource.data.isActive == true;
+    }
+
+    function publicModerated() {
+      return resource.data.isPublished == true && resource.data.isDeleted != true;
+    }
+
+    // Public catalogue/content reads. All client writes remain server/admin controlled.
+    match /products/{productId} {
+      allow read: if publicProduct();
+      allow write: if false;
+    }
+
+    match /banners/{bannerId} {
+      allow read: if publicBanner();
+      allow write: if false;
+    }
+
+    match /comments/{commentId} {
+      allow read: if publicModerated();
+      allow write: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if resource.data.isPublished == true;
+      allow write: if false;
+    }
+
+    // User profiles: customers can only access their own document.
+    // Admin UI should use the backend/Admin SDK for customer management.
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow write: if false;
+    }
+
+    match /addresses/{addressId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /wishlists/{wishlistId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /likes/{likeId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /return_requests/{returnId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /message_threads/{threadId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /messages/{messageId} {
+      allow read: if signedIn() && resource.data.senderId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Operational/sensitive collections are never writable from clients.
+    match /coupons/{couponId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /delivery_zones/{zoneId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /notification_logs/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Explicit deny-by-default for every future collection.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
