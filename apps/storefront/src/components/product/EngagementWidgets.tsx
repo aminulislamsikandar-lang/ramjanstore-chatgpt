@@ -1,0 +1,20 @@
+import { useEffect, useMemo, useState } from "react";
+import { engagementApi } from "../../services/engagementApi";
+
+type Review = { id:string; userId:string; stars:number; text:string; isVerifiedPurchase:boolean; createdAt?:string };
+type Comment = { id:string; userId:string; text:string; depth:number; parentCommentId?:string|null; createdAt?:string };
+
+export function ProductEngagement({ productId, initialLikes=0 }: { productId:string; initialLikes?:number }) {
+  const [liked,setLiked]=useState(false); const [likes,setLikes]=useState(initialLikes); const [wishlisted,setWishlisted]=useState(false); const [reviews,setReviews]=useState<Review[]>([]); const [comments,setComments]=useState<Comment[]>([]); const [stars,setStars]=useState(5); const [text,setText]=useState(""); const [commentText,setCommentText]=useState(""); const [replyFor,setReplyFor]=useState<string|null>(null);
+  const roots=useMemo(()=>comments.filter(c=>c.depth===0),[comments]);
+  const toggleLike=async()=>{const old=liked;setLiked(!old);setLikes(v=>v+(old?-1:1));try{const r=await engagementApi.like(productId);setLiked(r.liked);}catch{setLiked(old);setLikes(v=>v+(old?1:-1));}};
+  const toggleWish=async()=>{const old=wishlisted;setWishlisted(!old);try{const r=await engagementApi.wishlist(productId);setWishlisted(r.liked);}catch{setWishlisted(old);}};
+  const submitReview=async()=>{if(!text.trim())return;const r=await engagementApi.rating(productId,stars,text);setReviews(v=>[{id:r.id,userId:"me",stars,text,isVerifiedPurchase:true},...v]);setText("");};
+  const submitComment=async(parentCommentId?:string)=>{if(!commentText.trim())return;const r=await engagementApi.comment(productId,commentText,parentCommentId);setComments(v=>[...v,{id:r.id,userId:"me",text:commentText,depth:parentCommentId?1:0,parentCommentId}]);setCommentText("");setReplyFor(null);};
+  useEffect(()=>{ void (async()=>{try{const p=await fetch(`${import.meta.env.VITE_API_URL??"http://localhost:4000/api/v1"}/products/${productId}`).then(r=>r.json());setReviews(p.data?.reviews??[]);setComments(p.data?.comments??[]);}catch{/* engagement is non-blocking */}})();},[productId]);
+  return <section className="mt-8 space-y-8">
+    <div className="flex flex-wrap gap-3"><button onClick={toggleWish} className="rounded-xl border px-4 py-2">{wishlisted?"♥ Saved":"♡ Wishlist"}</button><button onClick={toggleLike} className="rounded-xl border px-4 py-2">{liked?"♥":"♡"} {likes}</button></div>
+    <section><h2 className="text-2xl font-semibold">Reviews</h2><div className="mt-3 flex gap-1">{[1,2,3,4,5].map(n=><button key={n} onClick={()=>setStars(n)} aria-label={`${n} stars`} className={n<=stars?"text-amber-500":"text-slate-300"}>★</button>)}</div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Share your verified-buyer experience" className="mt-3 w-full rounded-xl border p-3"/><button onClick={submitReview} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-white">Submit review</button><div className="mt-4 space-y-3">{reviews.map(r=><article key={r.id} className="rounded-xl border p-4"><div>{"★".repeat(r.stars)} <span className="text-sm">{r.isVerifiedPurchase?"Verified buyer":""}</span></div><p>{r.text}</p></article>)}</div></section>
+    <section><h2 className="text-2xl font-semibold">Comments</h2><div className="mt-3 flex gap-2"><input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={replyFor?"Write a reply":"Write a comment"} className="flex-1 rounded-xl border p-3"/><button onClick={()=>submitComment(replyFor??undefined)} className="rounded-xl bg-slate-900 px-4 py-2 text-white">Post</button></div><div className="mt-4 space-y-3">{roots.map(c=><article key={c.id} className="rounded-xl border p-4"><p>{c.text}</p><button onClick={()=>setReplyFor(c.id)} className="mt-2 text-sm underline">Reply</button>{comments.filter(x=>x.parentCommentId===c.id&&x.depth===1).map(r=><div key={r.id} className="ml-6 mt-3 rounded-lg bg-slate-50 p-3">{r.text}</div>)}</article>)}</div></section>
+  </section>;
+}
