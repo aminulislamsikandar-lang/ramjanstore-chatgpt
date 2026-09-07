@@ -39,4 +39,29 @@ export async function processCheckout(req:AuthenticatedRequest,res:Response):Pro
  res.status(201).json(response);
 }
 
-export async function cancelOrder(req:AuthenticatedRequest,res:Response):Promise<void>{const ref=db.collection("orders").doc(req.params.orderId);try{await db.runTransaction(async tx=>{const d=await tx.get(ref);if(!d.exists||d.data()?.userId!==req.user!.uid)throw new Error("Order not found");if(!["NEW","CONFIRMED"].includes(String(d.data()!.status)))throw new Error("Order can no longer be cancelled");tx.update(ref,{status:"CANCELLED",cancelledAt:Timestamp.now(),updatedAt:Timestamp.now()});});res.json({success:true,message:"Order cancelled"});}catch(e){res.status(409).json({message:e instanceof Error?e.message:"Cancellation failed"});}}
+export async function cancelOrder(req:AuthenticatedRequest,res:Response):Promise<void>{
+ const ref=db.collection("orders").doc(req.params.orderId);
+ try{await db.runTransaction(async tx=>{
+   const d=await tx.get(ref);
+   if(!d.exists||d.data()?.userId!==req.user!.uid)throw new Error("Order not found");
+   const order=d.data()!;
+   if(!["NEW","CONFIRMED"].includes(String(order.status)))throw new Error("Order can no longer be cancelled");
+   const items=Array.isArray(order.items)?order.items as Array<Record<string,unknown>>:[];
+   const productIds=[...new Set(items.map(i=>String(i.productId)).filter(Boolean))];
+   const productRefs=productIds.map(id=>db.collection("products").doc(id));
+   const productDocs=await Promise.all(productRefs.map(r=>tx.get(r)));
+   for(let n=0;n<productDocs.length;n++){
+     const p=productDocs[n]; if(!p.exists)throw new Error("Product no longer exists; contact support for inventory reconciliation");
+     const product=p.data()!; let variants=Array.isArray(product.variants)?product.variants as Array<Record<string,unknown>>:null;
+     const matching=items.filter(i=>String(i.productId)===productRefs[n].id);
+     if(variants){
+       for(const item of matching){if(!item.variantId)throw new Error("Invalid order inventory snapshot");const variant=variants.find(v=>v.id===item.variantId);if(!variant)throw new Error("Order variant no longer exists; contact support");const qty=Number(item.quantity);if(!Number.isInteger(qty)||qty<1)throw new Error("Invalid order quantity");variants=variants.map(v=>v.id===item.variantId?{...v,stock:Number(v.stock??0)+qty}:v);}
+       tx.update(productRefs[n],{variants,updatedAt:Timestamp.now()});
+     }else{
+       const add=matching.reduce((sum,i)=>sum+Number(i.quantity),0);if(!Number.isInteger(add)||add<1)throw new Error("Invalid order quantity");tx.update(productRefs[n],{stock:Number(product.stock??0)+add,updatedAt:Timestamp.now()});
+     }
+   }
+   tx.update(ref,{status:"CANCELLED",cancelledAt:Timestamp.now(),inventoryRestoredAt:Timestamp.now(),updatedAt:Timestamp.now()});
+ });res.json({success:true,message:"Order cancelled and inventory restored"});
+ }catch(e){res.status(409).json({message:e instanceof Error?e.message:"Cancellation failed"});}
+}
