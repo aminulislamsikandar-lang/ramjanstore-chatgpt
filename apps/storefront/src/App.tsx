@@ -1,26 +1,5 @@
-import { Link, Route, Routes } from "react-router-dom";
-
-function Home() {
-  return (
-    <main className="container">
-      <p className="eyebrow">HYPERLOCAL COMMERCE</p>
-      <h1>RamjanStore</h1>
-      <p>Clothes, gas, rice and agriculture products from your local store.</p>
-      <nav>
-        <Link to="/products">Browse products</Link>
-      </nav>
-    </main>
-  );
-}
-
-function Products() {
-  return <main className="container"><h1>Products</h1><p>Product catalogue is ready for the API integration.</p></main>;
-}
-
-function NotFound() {
-  return <main className="container"><h1>404</h1><p>Page not found.</p><Link to="/">Return home</Link></main>;
-}
-
-export default function App() {
-  return <Routes><Route path="/" element={<Home />} /><Route path="/products" element={<Products />} /><Route path="*" element={<NotFound />} /></Routes>;
-}
+import {Link,Route,Routes}from"react-router-dom";import{AuthProvider}from"./auth/AuthContext";import ProtectedRoute from"./components/ProtectedRoute";import ProductDetail from"./pages/ProductDetail";import Wishlist from"./pages/Wishlist";import OrderTracking from"./pages/OrderTracking";
+function Home(){return <main className="mx-auto max-w-5xl p-6"><p className="text-sm font-semibold tracking-wider text-slate-500">HYPERLOCAL COMMERCE</p><h1 className="mt-2 text-5xl font-bold">RamjanStore</h1><p className="mt-4 text-slate-600">Clothes, gas, rice and agriculture products from your local store.</p><nav className="mt-6 flex gap-4"><Link to="/products" className="rounded-xl bg-slate-900 px-4 py-2 text-white">Browse products</Link><Link to="/wishlist" className="rounded-xl border px-4 py-2">Wishlist</Link></nav></main>}
+function Products(){return <main className="mx-auto max-w-5xl p-6"><h1 className="text-3xl font-bold">Products</h1><p className="mt-2 text-slate-500">Browse the live catalogue from RamjanStore.</p></main>}
+function App(){return <AuthProvider><Routes><Route path="/" element={<Home/>}/><Route path="/products" element={<Products/>}/><Route path="/product/:slug" element={<ProductDetail/>}/><Route element={<ProtectedRoute/>}><Route path="/orders/:id" element={<OrderTracking/>}/><Route path="/wishlist" element={<Wishlist/>}/></Route><Route path="*" element={<main className="p-6"><h1 className="text-3xl font-bold">404</h1><Link to="/">Return home</Link></main>}/></Routes></AuthProvider>}
+export default App;
