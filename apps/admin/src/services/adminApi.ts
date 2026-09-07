@@ -1,4 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api/v1";
-async function request<T>(path:string, options:RequestInit={}):Promise<T>{const token=localStorage.getItem("firebaseIdToken");const r=await fetch(`${API_URL}${path}`,{...options,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{}) ,...(options.headers||{})}});if(!r.ok)throw new Error((await r.json().catch(()=>null))?.error?.message||"Request failed");return r.json();}
+import { apiClient } from "../lib/apiClient";
 export type Order={id:string;orderNumber?:string;status:string;total:number;paymentStatus:string;customer?:{name?:string;phone?:string};deliveryAddress?:Record<string,string>;items?:Array<{name:string;quantity:number;unitPrice:number}>};
-export const adminApi={stats:()=>request<{data:{todayOrders:number;revenue:number;lowStockAlerts:number;pendingReturns:number}}>("/admin/stats"),orders:(q:string)=>request<{data:Order[]}>(`/admin/orders${q}`),setStatus:(id:string,status:string)=>request(`/admin/orders/${id}/status`,{method:"PATCH",body:JSON.stringify({status})}),moderate:(collection:"comments"|"ratings",id:string,isPublished:boolean)=>request("/admin/moderation",{method:"PATCH",body:JSON.stringify({collection,id,isPublished})})};
+export type ModerationItem={id:string;text?:string;stars?:number;productId?:string;userId?:string;createdAt?:string};
+export const adminApi={
+ stats:()=>apiClient<{data:{todayOrders:number;revenue:number;lowStockAlerts:number;pendingReturns:number}}>("/admin/stats"),
+ orders:(q:string)=>apiClient<{data:Order[]}>(`/admin/orders${q}`),
+ setStatus:(id:string,status:string)=>apiClient(`/admin/orders/${id}/status`,{method:"PATCH",body:JSON.stringify({status})}),
+ moderation:()=>apiClient<{data:{comments:ModerationItem[];ratings:ModerationItem[]}}>("/admin/moderation"),
+ moderate:(collection:"comments"|"ratings",id:string,isPublished:boolean)=>apiClient("/admin/moderation",{method:"PATCH",body:JSON.stringify({collection,id,isPublished})}),
+};
