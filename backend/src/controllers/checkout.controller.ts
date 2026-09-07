@@ -32,7 +32,7 @@ export async function processCheckout(req:AuthenticatedRequest,res:Response):Pro
    if(couponId){couponDoc=await tx.get(db.collection("coupons").doc(couponId));usageDoc=await tx.get(db.collection("coupon_usages").doc(`${userId}_${couponId}`));}
    for(let n=0;n<productDocs.length;n++){const p=productDocs[n],input=body.items[n];if(!p.exists||p.data()?.isActive!==true)throw new Error("Product changed; please retry");const d=p.data()!;if(input.variantId){const variants=(Array.isArray(d.variants)?d.variants:[]) as Array<Record<string,unknown>>;const v=variants.find(x=>x.id===input.variantId);if(!v||Number(v.stock??0)<input.quantity)throw new Error("Stock changed; please retry");tx.update(refs[n],{variants:variants.map(x=>x.id===input.variantId?{...x,stock:Number(x.stock)-input.quantity}:x),updatedAt:Timestamp.now()});}else{const stock=Number(d.stock??0);if(stock<input.quantity)throw new Error("Stock changed; please retry");tx.update(refs[n],{stock:stock-input.quantity,updatedAt:Timestamp.now()});}}
    if(couponId&&couponDoc){const d=couponDoc.data()!;const limit=d.usageLimit===undefined?Infinity:Number(d.usageLimit),used=Number(d.usageCount??0),userUsed=Number(usageDoc?.data()?.count??0);if(!couponDoc.exists||d.isActive!==true||used>=limit)throw new Error("Coupon is no longer available");if(d.perUserLimit!==undefined&&userUsed>=Number(d.perUserLimit))throw new Error("Your coupon usage limit has been reached");tx.update(db.collection("coupons").doc(couponId),{usageCount:used+1,updatedAt:Timestamp.now()});tx.set(db.collection("coupon_usages").doc(`${userId}_${couponId}`),{userId,couponId,count:userUsed+1,updatedAt:Timestamp.now()},{merge:true});}
-   tx.set(orderRef,{orderNumber:number,userId,status:STATUS,items:lineItems,subtotal,deliveryCharge:delivery,discount,total,paymentMethod:"COD",paymentStatus:"PENDING",deliveryAddress:{...addressSnap.data(),id:body.addressId},couponId:couponId??null,createdAt:Timestamp.now(),updatedAt:Timestamp.now()});
+   tx.set(orderRef,{orderNumber:number,userId,status:STATUS,items:lineItems,subtotal,deliveryCharge:delivery,discount,total,paymentMethod:"COD",paymentStatus:"PENDING",deliveryAddress:{...addressSnap.data(),id:body.addressId},couponId:couponId??null,statusHistory:[{from:null,to:STATUS,at:Timestamp.now()}],createdAt:Timestamp.now(),updatedAt:Timestamp.now()});
    tx.create(idemRef,{userId,key,orderId:orderRef.id,response,httpStatus:201,createdAt:Timestamp.now()});
  });
  }catch(e){if(e instanceof Error&&e.message==="IDEMPOTENCY_REPLAY"){const replay=await idemRef.get();if(replay.exists)return void res.status(Number(replay.data()?.httpStatus??201)).json(replay.data()?.response);}return void res.status(409).json({message:e instanceof Error?e.message:"Checkout could not be completed"});}
@@ -48,7 +48,8 @@ export async function cancelOrder(req:AuthenticatedRequest,res:Response):Promise
    const d=await tx.get(ref);
    if(!d.exists||d.data()?.userId!==req.user!.uid)throw new Error("Order not found");
    const order=d.data()!;
-   if(!["NEW","CONFIRMED"].includes(String(order.status)))throw new Error("Order can no longer be cancelled");
+   const currentStatus=String(order.status);
+   if(!["NEW","CONFIRMED"].includes(currentStatus))throw new Error("Order can no longer be cancelled");
    if(order.inventoryRestoredAt)throw new Error("Order inventory has already been restored");
    const items=Array.isArray(order.items)?order.items as Array<Record<string,unknown>>:[];
    const productIds=[...new Set(items.map(i=>String(i.productId)).filter(Boolean))];
@@ -62,7 +63,8 @@ export async function cancelOrder(req:AuthenticatedRequest,res:Response):Promise
      else{const add=matching.reduce((sum,i)=>sum+Number(i.quantity),0);if(!Number.isInteger(add)||add<1)throw new Error("Invalid order quantity");tx.update(productRefs[n],{stock:Number(product.stock??0)+add,updatedAt:Timestamp.now()});}
    }
    if(order.couponId){const couponRef=db.collection("coupons").doc(String(order.couponId)),usageRef=db.collection("coupon_usages").doc(`${req.user!.uid}_${order.couponId}`);const [couponSnap,usageSnap]=await Promise.all([tx.get(couponRef),tx.get(usageRef)]);if(couponSnap.exists){const used=Math.max(0,Number(couponSnap.data()?.usageCount??0));tx.update(couponRef,{usageCount:Math.max(0,used-1),updatedAt:Timestamp.now()});}if(usageSnap.exists){const count=Math.max(0,Number(usageSnap.data()?.count??0));if(count<=1)tx.delete(usageRef);else tx.update(usageRef,{count:count-1,updatedAt:Timestamp.now()});}}
-   tx.update(ref,{status:"CANCELLED",cancellationReason:reason,cancelledAt:Timestamp.now(),inventoryRestoredAt:Timestamp.now(),couponUsageRevertedAt:order.couponId?Timestamp.now():null,updatedAt:Timestamp.now()});
+   const now=Timestamp.now();const history=Array.isArray(order.statusHistory)?order.statusHistory:[];
+   tx.update(ref,{status:"CANCELLED",cancellationReason:reason,cancelledAt:now,inventoryRestoredAt:now,couponUsageRevertedAt:order.couponId?now:null,statusHistory:[...history,{from:currentStatus,to:"CANCELLED",at:now}],updatedAt:now});
  });res.json({success:true,message:"Order cancelled and inventory restored"});
  }catch(e){res.status(409).json({message:e instanceof Error?e.message:"Cancellation failed"});}
 }
