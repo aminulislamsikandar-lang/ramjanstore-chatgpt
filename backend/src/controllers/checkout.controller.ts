@@ -41,27 +41,28 @@ export async function processCheckout(req:AuthenticatedRequest,res:Response):Pro
 
 export async function cancelOrder(req:AuthenticatedRequest,res:Response):Promise<void>{
  const ref=db.collection("orders").doc(req.params.orderId);
+ const rawReason=typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+ if(rawReason.length>500)return void res.status(400).json({message:"Cancellation reason must be 500 characters or fewer"});
+ const reason=rawReason||"Customer requested cancellation";
  try{await db.runTransaction(async tx=>{
    const d=await tx.get(ref);
    if(!d.exists||d.data()?.userId!==req.user!.uid)throw new Error("Order not found");
    const order=d.data()!;
    if(!["NEW","CONFIRMED"].includes(String(order.status)))throw new Error("Order can no longer be cancelled");
+   if(order.inventoryRestoredAt)throw new Error("Order inventory has already been restored");
    const items=Array.isArray(order.items)?order.items as Array<Record<string,unknown>>:[];
    const productIds=[...new Set(items.map(i=>String(i.productId)).filter(Boolean))];
    const productRefs=productIds.map(id=>db.collection("products").doc(id));
    const productDocs=await Promise.all(productRefs.map(r=>tx.get(r)));
    for(let n=0;n<productDocs.length;n++){
-     const p=productDocs[n]; if(!p.exists)throw new Error("Product no longer exists; contact support for inventory reconciliation");
-     const product=p.data()!; let variants=Array.isArray(product.variants)?product.variants as Array<Record<string,unknown>>:null;
+     const p=productDocs[n];if(!p.exists)throw new Error("Product no longer exists; contact support for inventory reconciliation");
+     const product=p.data()!,variants=Array.isArray(product.variants)?product.variants as Array<Record<string,unknown>>:null;
      const matching=items.filter(i=>String(i.productId)===productRefs[n].id);
-     if(variants){
-       for(const item of matching){if(!item.variantId)throw new Error("Invalid order inventory snapshot");const variant=variants.find(v=>v.id===item.variantId);if(!variant)throw new Error("Order variant no longer exists; contact support");const qty=Number(item.quantity);if(!Number.isInteger(qty)||qty<1)throw new Error("Invalid order quantity");variants=variants.map(v=>v.id===item.variantId?{...v,stock:Number(v.stock??0)+qty}:v);}
-       tx.update(productRefs[n],{variants,updatedAt:Timestamp.now()});
-     }else{
-       const add=matching.reduce((sum,i)=>sum+Number(i.quantity),0);if(!Number.isInteger(add)||add<1)throw new Error("Invalid order quantity");tx.update(productRefs[n],{stock:Number(product.stock??0)+add,updatedAt:Timestamp.now()});
-     }
+     if(variants){let next=variants;for(const item of matching){if(!item.variantId)throw new Error("Invalid order inventory snapshot");const variant=next.find(v=>v.id===item.variantId),qty=Number(item.quantity);if(!variant||!Number.isInteger(qty)||qty<1)throw new Error("Invalid order inventory snapshot");next=next.map(v=>v.id===item.variantId?{...v,stock:Number(v.stock??0)+qty}:v);}tx.update(productRefs[n],{variants:next,updatedAt:Timestamp.now()});}
+     else{const add=matching.reduce((sum,i)=>sum+Number(i.quantity),0);if(!Number.isInteger(add)||add<1)throw new Error("Invalid order quantity");tx.update(productRefs[n],{stock:Number(product.stock??0)+add,updatedAt:Timestamp.now()});}
    }
-   tx.update(ref,{status:"CANCELLED",cancelledAt:Timestamp.now(),inventoryRestoredAt:Timestamp.now(),updatedAt:Timestamp.now()});
+   if(order.couponId){const couponRef=db.collection("coupons").doc(String(order.couponId)),usageRef=db.collection("coupon_usages").doc(`${req.user!.uid}_${order.couponId}`);const [couponSnap,usageSnap]=await Promise.all([tx.get(couponRef),tx.get(usageRef)]);if(couponSnap.exists){const used=Math.max(0,Number(couponSnap.data()?.usageCount??0));tx.update(couponRef,{usageCount:Math.max(0,used-1),updatedAt:Timestamp.now()});}if(usageSnap.exists){const count=Math.max(0,Number(usageSnap.data()?.count??0));if(count<=1)tx.delete(usageRef);else tx.update(usageRef,{count:count-1,updatedAt:Timestamp.now()});}}
+   tx.update(ref,{status:"CANCELLED",cancellationReason:reason,cancelledAt:Timestamp.now(),inventoryRestoredAt:Timestamp.now(),couponUsageRevertedAt:order.couponId?Timestamp.now():null,updatedAt:Timestamp.now()});
  });res.json({success:true,message:"Order cancelled and inventory restored"});
  }catch(e){res.status(409).json({message:e instanceof Error?e.message:"Cancellation failed"});}
 }
