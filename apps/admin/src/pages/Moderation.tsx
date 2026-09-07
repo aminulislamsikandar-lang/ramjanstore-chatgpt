@@ -1,0 +1,2 @@
+import {useEffect,useState} from "react";import {adminApi} from "../services/adminApi";
+export default function Moderation(){const[items,setItems]=useState<any[]>([]);useEffect(()=>{setItems([])},[]);return <div><h2>Moderation</h2><p>Pending and flagged reviews/comments appear here.</p>{items.map(x=><article key={x.id}><p>{x.text}</p><button onClick={()=>adminApi.moderate(x.collection,x.id,true)}>Approve</button><button onClick={()=>adminApi.moderate(x.collection,x.id,false)}>Hide</button></article>)}</div>}
