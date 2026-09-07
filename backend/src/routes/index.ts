@@ -2,9 +2,10 @@ import { Router } from "express";
 import uploadRoutes from "./upload.routes.js";
 import authRoutes from "./auth.routes.js";
 import productRoutes from "./product.routes.js";
-
-export const apiRouter = Router();
-apiRouter.use("/auth", authRoutes);
-apiRouter.use("/products", productRoutes);
-apiRouter.use("/uploads", uploadRoutes);
+import commerceRoutes from "./commerce.routes.js";
+export const apiRouter=Router();
+apiRouter.use("/auth",authRoutes);
+apiRouter.use("/products",productRoutes);
+apiRouter.use("/uploads",uploadRoutes);
+apiRouter.use("/",commerceRoutes);
 export default apiRouter;
