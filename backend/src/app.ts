@@ -1,7 +1,7 @@
-import "dotenv/config";
 import cors from "cors";
 import express, { type Request, type Response } from "express";
 import helmet from "helmet";
+import { env } from "./config/env.js";
 import { apiRateLimiter } from "./middleware/rateLimiter.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { notFound } from "./middleware/notFound.js";
@@ -10,11 +10,13 @@ import { apiRouter } from "./routes/index.js";
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URLS ?? `${process.env.CLIENT_URL ?? "http://localhost:5173"},${process.env.ADMIN_URL ?? "http://localhost:5174"}`)
-  .split(",").map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = (env.CLIENT_URLS ?? `${env.CLIENT_URL},${env.ADMIN_URL}`)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.disable("x-powered-by");
-app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
+app.set("trust proxy", env.TRUST_PROXY === "true" ? 1 : false);
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
