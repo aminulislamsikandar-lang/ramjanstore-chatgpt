@@ -1,14 +1,8 @@
-import "dotenv/config";
 import http from "node:http";
 import { app } from "./app.js";
+import { env } from "./config/env.js";
 
-const rawPort = process.env.PORT ?? "5000";
-const port = Number(rawPort);
-const host = process.env.HOST ?? "0.0.0.0";
-
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error(`Invalid PORT value: ${rawPort}`);
-}
+const { PORT: port, HOST: host } = env;
 
 const server = http.createServer(app);
 let shuttingDown = false;
@@ -56,7 +50,7 @@ server.on("error", (error: NodeJS.ErrnoException) => {
 
 server.listen(port, host, () => {
   console.info("[server] RamjanStore API started", {
-    environment: process.env.NODE_ENV ?? "development",
+    environment: env.NODE_ENV,
     host,
     port,
     health: `/api/v1/health`,
