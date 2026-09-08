@@ -7,6 +7,8 @@ import { requestLogger } from "./middleware/requestLogger.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { apiRouter } from "./routes/index.js";
+import { db } from "./firebase/firestore.js";
+import { success, failure } from "./utils/apiResponse.js";
 
 const app = express();
 
@@ -33,7 +35,25 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(apiRateLimiter);
 
 app.get("/api/v1/health", (_req: Request, res: Response) => {
-  res.status(200).json({ success: true, service: "ramjanstore-api", status: "healthy", timestamp: new Date().toISOString() });
+  return success(res, {
+    service: "ramjanstore-api",
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/v1/ready", async (_req: Request, res: Response) => {
+  try {
+    await db.collection("_health").doc("readiness").get();
+    return success(res, {
+      service: "ramjanstore-api",
+      status: "ready",
+      checks: { firestore: "ok" },
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    return failure(res, 503, "SERVICE_NOT_READY", "Service dependencies are not ready.");
+  }
 });
 
 app.use("/api/v1", apiRouter);
