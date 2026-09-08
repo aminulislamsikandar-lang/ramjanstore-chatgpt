@@ -1,7 +1,10 @@
-import type { z } from "zod";
-import type { envSchema } from "./productionSchema.js";
-
-export type ProductionConfig = z.infer<typeof envSchema>;
+export interface ProductionConfig {
+  NODE_ENV: "development" | "test" | "production";
+  CLIENT_URL: string;
+  ADMIN_URL: string;
+  CLIENT_URLS?: string;
+  TRUST_PROXY: "true" | "false";
+}
 
 export function validateProductionConfig(values: ProductionConfig): void {
   if (values.NODE_ENV !== "production") return;
