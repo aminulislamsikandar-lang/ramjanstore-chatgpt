@@ -7,6 +7,7 @@ import { listDeliveryZones, getDeliveryZoneByPostalCode, createDeliveryZone, upd
 import { listCoupons, createCoupon, updateCoupon, deactivateCoupon, validateCoupon } from "../services/coupon.service.js";
 import { processCheckout, cancelOrder } from "../controllers/checkout.controller.js";
 import { checkoutRateLimiter, writeRateLimiter } from "../middleware/rateLimiter.js";
+import { checkoutIdempotency } from "../middleware/checkoutIdempotency.js";
 const router=Router();
 const zoneSchema=z.object({name:z.string().min(1).max(100),postalCodes:z.array(z.string().regex(/^\d{4,10}$/)).min(1),baseCharge:z.number().nonnegative(),minimumOrderValue:z.number().nonnegative(),freeDeliveryThreshold:z.number().nonnegative().optional(),isActive:z.boolean().default(true)});
 const couponSchema=z.object({code:z.string().min(2).max(50),type:z.enum(["PERCENTAGE","FIXED"]),value:z.number().positive(),minOrderValue:z.number().nonnegative().default(0),maxDiscount:z.number().positive().optional(),usageLimit:z.number().int().positive().optional(),perUserLimit:z.number().int().positive().optional(),categoryIds:z.array(z.string()).optional(),startsAt:z.string().datetime().optional(),expiresAt:z.string().datetime().optional(),isActive:z.boolean().default(true)}).superRefine((v,c)=>{if(v.type==="PERCENTAGE"&&v.value>100)c.addIssue({code:z.ZodIssueCode.custom,path:["value"],message:"Percentage cannot exceed 100"});if(v.expiresAt&&v.startsAt&&new Date(v.expiresAt)<=new Date(v.startsAt))c.addIssue({code:z.ZodIssueCode.custom,path:["expiresAt"],message:"Expiry must be after start"});});
@@ -20,6 +21,6 @@ router.get("/coupons",authenticate,requireAdmin,asyncHandler(async(_req,res)=>re
 router.post("/coupons",authenticate,requireAdmin,requireMfa,writeRateLimiter,asyncHandler(async(req,res)=>{const v=couponSchema.parse(req.body);const data={...v,startsAt:v.startsAt?new Date(v.startsAt):undefined,expiresAt:v.expiresAt?new Date(v.expiresAt):undefined};res.status(201).json({success:true,coupon:await createCoupon(data as never)});}));
 router.patch("/coupons/:id",authenticate,requireAdmin,requireMfa,writeRateLimiter,asyncHandler(async(req,res)=>{const v=couponSchema.partial().parse(req.body);await updateCoupon(req.params.id,v as never);res.json({success:true});}));
 router.delete("/coupons/:id",authenticate,requireAdmin,requireMfa,writeRateLimiter,asyncHandler(async(req,res)=>{await deactivateCoupon(req.params.id);res.json({success:true});}));
-router.post("/checkout/process",authenticate,checkoutRateLimiter,asyncHandler(processCheckout));
+router.post("/checkout/process",authenticate,checkoutRateLimiter,checkoutIdempotency,asyncHandler(processCheckout));
 router.post("/orders/:orderId/cancel",authenticate,writeRateLimiter,asyncHandler(cancelOrder));
 export default router;
