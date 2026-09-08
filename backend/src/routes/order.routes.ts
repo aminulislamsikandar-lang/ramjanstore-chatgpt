@@ -3,9 +3,30 @@ import { authenticate, type AuthenticatedRequest } from "../middleware/authentic
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { db } from "../firebase/firestore.js";
 import { cancelOrder } from "../controllers/checkout.controller.js";
-const router=Router();
+import { failure, success } from "../utils/apiResponse.js";
+
+const router = Router();
 router.use(authenticate);
-router.get("/",asyncHandler(async(req,res)=>{const request=req as AuthenticatedRequest;const s=await db.collection("orders").where("userId","==",request.user!.uid).orderBy("createdAt","desc").limit(50).get();res.json({success:true,data:s.docs.map(d=>({id:d.id,...d.data()}))});}));
-router.get("/:orderId",asyncHandler(async(req,res)=>{const request=req as AuthenticatedRequest;const d=await db.collection("orders").doc(req.params.orderId).get();if(!d.exists||d.data()?.userId!==request.user!.uid)return res.status(404).json({message:"Order not found"});res.json({success:true,data:{id:d.id,...d.data()}});}));
-router.post("/:orderId/cancel",asyncHandler(cancelOrder));
+
+router.get("/", asyncHandler(async (req, res) => {
+  const request = req as AuthenticatedRequest;
+  const snapshot = await db.collection("orders")
+    .where("userId", "==", request.user!.uid)
+    .orderBy("createdAt", "desc")
+    .limit(50)
+    .get();
+  return success(res, snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+}));
+
+router.get("/:orderId", asyncHandler(async (req, res) => {
+  const request = req as AuthenticatedRequest;
+  const doc = await db.collection("orders").doc(req.params.orderId).get();
+  if (!doc.exists || doc.data()?.userId !== request.user!.uid) {
+    return failure(res, 404, "ORDER_NOT_FOUND", "Order not found.");
+  }
+  return success(res, { id: doc.id, ...doc.data() });
+}));
+
+router.post("/:orderId/cancel", asyncHandler(cancelOrder));
+
 export default router;
