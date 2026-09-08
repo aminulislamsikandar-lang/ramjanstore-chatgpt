@@ -4,78 +4,32 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
-    function isAdmin() {
-      return signedIn() && (request.auth.token.role == 'owner' || request.auth.token.role == 'staff');
-    }
+    function isAdmin() { return signedIn() && (request.auth.token.role == 'owner' || request.auth.token.role == 'staff'); }
     function publicActive() { return resource.data.isActive == true; }
-    function publishedComment() {
-      return resource.data.isPublished == true && resource.data.isDeleted != true;
-    }
+    function publishedComment() { return resource.data.isPublished == true && resource.data.isDeleted != true; }
+    function owns(data) { return signedIn() && data.userId == request.auth.uid; }
 
-    match /products/{id} {
-      allow read: if publicActive();
-      allow write: if false;
-    }
-    match /banners/{id} {
-      allow read: if publicActive();
-      allow write: if false;
-    }
-    match /comments/{id} {
-      allow read: if publishedComment();
-      allow write: if false;
-    }
-    match /ratings/{id} {
-      allow read: if resource.data.isPublished == true;
-      allow write: if false;
-    }
+    match /products/{id} { allow read: if publicActive(); allow write: if false; }
+    match /banners/{id} { allow read: if publicActive(); allow write: if false; }
+    match /comments/{id} { allow read: if publishedComment(); allow write: if false; }
+    match /ratings/{id} { allow read: if resource.data.isPublished == true; allow write: if false; }
 
-    match /users/{uid} {
-      allow read: if isSelf(uid);
-      allow write: if false;
-    }
-    match /addresses/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-    match /orders/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-    match /wishlists/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-    match /likes/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-    match /return_requests/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-    match /message_threads/{id} {
-      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false;
-    }
-    match /messages/{id} {
-      allow read: if signedIn() && (
-        resource.data.senderId == request.auth.uid ||
-        get(/databases/$(database)/documents/message_threads/$(resource.data.threadId)).data.userId == request.auth.uid ||
-        isAdmin()
-      );
-      allow write: if false;
-    }
-    match /notification_logs/{id} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
+    match /users/{uid} { allow read: if isSelf(uid); allow write: if false; }
+    match /addresses/{id} { allow read: if owns(resource.data); allow write: if false; }
+    match /orders/{id} { allow read: if owns(resource.data) || isAdmin(); allow write: if false; }
+    match /wishlists/{id} { allow read: if owns(resource.data); allow write: if false; }
+    match /likes/{id} { allow read: if owns(resource.data); allow write: if false; }
+    match /return_requests/{id} { allow read: if owns(resource.data) || isAdmin(); allow write: if false; }
+    match /message_threads/{id} { allow read: if owns(resource.data) || isAdmin(); allow write: if false; }
+    match /messages/{id} { allow read: if signedIn() && (resource.data.senderId == request.auth.uid || get(/databases/$(database)/documents/message_threads/$(resource.data.threadId)).data.userId == request.auth.uid || isAdmin()); allow write: if false; }
+    match /notification_logs/{id} { allow read: if owns(resource.data); allow write: if false; }
 
-    // Never expose privileged operational data or allow client-side mutation.
     match /coupons/{id} { allow read, write: if false; }
     match /delivery_zones/{id} { allow read, write: if false; }
     match /audit_logs/{id} { allow read, write: if false; }
+    match /inventory_reservations/{id} { allow read, write: if false; }
+    match /background_jobs/{id} { allow read, write: if false; }
 
-    // Default deny for all future collections.
     match /{document=**} { allow read, write: if false; }
   }
 }
