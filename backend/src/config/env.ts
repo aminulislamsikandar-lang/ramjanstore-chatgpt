@@ -19,4 +19,10 @@ const envSchema = z.object({
   RETURN_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  const issues = parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+  throw new Error(`Invalid environment configuration: ${issues}`);
+}
+
+export const env = parsed.data;
