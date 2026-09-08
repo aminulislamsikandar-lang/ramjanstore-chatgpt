@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { env } from "./config/env.js";
 import { apiRateLimiter } from "./middleware/rateLimiter.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { observability } from "./middleware/observability.js";
 import { httpHardening } from "./middleware/httpHardening.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -13,31 +14,16 @@ import { success, failure } from "./utils/apiResponse.js";
 
 const app = express();
 const allowedOrigins = (env.CLIENT_URLS ?? `${env.CLIENT_URL},${env.ADMIN_URL}`).split(",").map(origin => origin.trim()).filter(Boolean);
-
 app.disable("x-powered-by");
 app.set("trust proxy", env.TRUST_PROXY === "true" ? 1 : false);
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  referrerPolicy: { policy: "no-referrer" },
-  hsts: env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
-}));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, referrerPolicy: { policy: "no-referrer" }, hsts: env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false }));
 app.use(httpHardening);
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Origin is not allowed by CORS policy."));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key"],
-  maxAge: 86400,
-}));
+app.use(cors({ origin: (origin, callback) => !origin || allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error("Origin is not allowed by CORS policy.")), credentials: true, methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key"], maxAge: 86400 }));
+app.use(observability);
 app.use(requestLogger);
 app.use(express.json({ limit: "1mb", strict: true }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(apiRateLimiter);
-
 app.get("/api/v1/health", (_req: Request, res: Response) => success(res, { service: "ramjanstore-api", status: "healthy", timestamp: new Date().toISOString() }));
 app.get("/api/v1/ready", async (_req: Request, res: Response) => { try { await db.collection("_health").doc("readiness").get(); return success(res, { service: "ramjanstore-api", status: "ready", checks: { firestore: "ok" }, timestamp: new Date().toISOString() }); } catch { return failure(res, 503, "SERVICE_NOT_READY", "Service dependencies are not ready."); } });
 app.use("/api/v1", apiRouter);
